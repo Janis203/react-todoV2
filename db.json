@@ -1,0 +1,45 @@
+{
+  "posts": [
+    {
+      "id": "1",
+      "title": "another title",
+      "content": "asdas",
+      "completed": true
+    },
+    {
+      "id": "2",
+      "title": "asdf123",
+      "content": "asdll",
+      "completed": false
+    },
+    {
+      "id": "05c1",
+      "title": "Hello",
+      "content": "12345",
+      "completed": false
+    },
+    {
+      "id": "a0fb",
+      "title": "123123",
+      "content": "",
+      "completed": true
+    }
+  ],
+  "comments": [
+    {
+      "id": "1",
+      "text": "Hiaaaa",
+      "taskId": "2"
+    },
+    {
+      "id": "1",
+      "text": "Bad 1/10",
+      "taskId": "1"
+    },
+    {
+      "id": "1",
+      "text": "aaaaaaaaaaaaa",
+      "taskId": "05c1"
+    }
+  ]
+}
