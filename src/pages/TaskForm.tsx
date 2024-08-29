@@ -1,79 +1,129 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom'; // Import Link here
-
-type Task = {
-  id?: string;
-  title: string;
-  content?: string;
-  completed: boolean;
-};
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import { Task } from '../types';
 
 function TaskForm() {
-  const { id } = useParams<{ id: string }>();
-  const [task, setTask] = useState<Task>({ title: '', content: '', completed: false });
-  const [isEditing, setIsEditing] = useState<boolean>(false);
   const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  const [task, setTask] = useState<Task>({
+    id: '',
+    title: '',
+    content: '',
+    completed: false,
+  });
+  const [loading, setLoading] = useState(false);
+
+  const isEditMode = params.id && params.id !== '';
+
+  const taskId = isEditMode ? params.id : undefined;
 
   useEffect(() => {
-    if (id) {
-      setIsEditing(true);
-      fetch(`http://localhost:3004/posts/${id}`)
-        .then(response => response.json())
-        .then(data => setTask(data));
+    if (isEditMode && taskId) {
+      setLoading(true);
+      axios.get(`http://localhost:3004/posts/${taskId}`)
+        .then((response) => {
+          console.log('Fetched task data:', response.data); 
+          setTask(response.data);
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error('Failed to load task:', error);
+          toast.error('Failed to load task');
+          setLoading(false);
+        });
+    } else {
+      setTask({
+        id: '', 
+        title: '',
+        content: '',
+        completed: false,
+      });
     }
-  }, [id]);
+  }, [isEditMode, taskId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setTask({ ...task, [name]: value });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (isEditMode) {
+        console.log('Updating task:', task); 
+        await axios.put(`http://localhost:3004/posts/${task.id}`, task);
+        toast.success('Task updated successfully!');
+      } else {
+        const { id, ...newTask } = task;
+        console.log('Creating new task:', newTask); 
+        await axios.post('http://localhost:3004/posts', newTask);
+        toast.success('Task added successfully!');
+      }
+
+      navigate({ to: '/' });
+    } catch (error) {
+      console.error('Failed to save task:', error);
+      toast.error('Failed to save task');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const method = isEditing ? 'PUT' : 'POST';
-    const url = isEditing ? `http://localhost:3004/posts/${id}` : 'http://localhost:3004/posts';
-
-    fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(task),
-    })
-      .then(() => navigate('/'))
-      .catch(error => console.error('Error saving task:', error));
+  const handleCancel = () => {
+    navigate({ to: '/' });
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-800">{isEditing ? 'Edit Task' : 'Add Task'}</h1>
-      <form onSubmit={handleSubmit} className="mt-6">
-        <div className="mb-4">
-          <label htmlFor="title" className="block text-gray-700">Title</label>
+      <h2 className="text-2xl font-bold mb-4">{isEditMode ? 'Edit Task' : 'Add New Task'}</h2>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="task-title" className="block text-sm font-medium">Title</label>
           <input
+            id="task-title"
             type="text"
-            id="title"
             name="title"
             value={task.title}
-            onChange={handleChange}
-            className="mt-1 block w-full p-2 border rounded"
+            onChange={(e) => setTask({ ...task, title: e.target.value })}
+            className="border border-gray-300 rounded p-2 w-full"
             required
           />
         </div>
-        <div className="mb-4">
-          <label htmlFor="content" className="block text-gray-700">Content</label>
+        <div>
+          <label htmlFor="task-content" className="block text-sm font-medium">Content</label>
           <textarea
-            id="content"
+            id="task-content"
             name="content"
-            value={task.content || ''}
-            onChange={handleChange}
-            rows={4}
-            className="mt-1 block w-full p-2 border rounded"
+            value={task.content}
+            onChange={(e) => setTask({ ...task, content: e.target.value })}
+            className="border border-gray-300 rounded p-2 w-full"
           />
         </div>
-        <button type="submit" className="btn btn-primary px-4 py-2 rounded shadow-lg">
-          {isEditing ? 'Update Task' : 'Add Task'}
+        <div>
+          <label htmlFor="task-completed" className="block text-sm font-medium">Completed</label>
+          <input
+            id="task-completed"
+            type="checkbox"
+            name="completed"
+            checked={task.completed}
+            onChange={(e) => setTask({ ...task, completed: e.target.checked })}
+          />
+        </div>
+        <button
+          type="submit"
+          className="bg-blue-500 text-white px-4 py-2 rounded shadow"
+          disabled={loading}
+        >
+          {loading ? 'Saving...' : 'Save Task'}
+        </button>
+        <button
+          type="button"
+          onClick={handleCancel}
+          className="bg-gray-500 text-white px-4 py-2 rounded shadow ml-4"
+        >
+          Cancel
         </button>
       </form>
-      <Link to="/" className="mt-4 inline-block text-blue-500">Back to Task List</Link>
     </div>
   );
 }

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import axios from 'axios';
 
 type Task = {
   id: string;
@@ -9,61 +10,63 @@ type Task = {
 };
 
 function TaskList() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetch('http://localhost:3004/posts')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        setTasks(data);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Error fetching tasks:', error);
-        setError('Failed to load tasks');
-        setLoading(false);
+  const { data: tasks = [], isLoading, error } = useQuery<Task[], Error>({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const response = await axios.get('http://localhost:3004/posts');
+      return response.data;
+    }
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async (task: Task) => {
+      await axios.put(`http://localhost:3004/posts/${task.id}`, {
+        ...task,
+        completed: !task.completed
       });
-  }, []);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
 
-  if (loading) {
+  const deleteMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      await axios.delete(`http://localhost:3004/posts/${taskId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  if (isLoading) {
     return <div>Loading...</div>;
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return <div>Error: {error.message}</div>;
   }
 
-  const handleComplete = (id: string) => {
-    const task = tasks.find(task => task.id === id);
-    if (task) {
-      fetch(`http://localhost:3004/posts/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...task, completed: !task.completed }),
-      })
-        .then(() => setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t)))
-        .catch(error => console.error('Error updating task:', error));
-    }
+  const handleComplete = (task: Task) => {
+    completeMutation.mutate(task);
   };
 
-  const handleDelete = (id: string) => {
-    fetch(`http://localhost:3004/posts/${id}`, { method: 'DELETE' })
-      .then(() => setTasks(tasks.filter(task => task.id !== id)))
-      .catch(error => console.error('Error deleting task:', error));
+  const handleDelete = (taskId: string) => {
+    deleteMutation.mutate(taskId);
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Task List</h1>
-        <Link to="/posts/add" className="btn btn-primary px-4 py-2 rounded shadow-lg">Add Task</Link>
+        <Link
+          to="/posts/add" 
+          className="btn btn-primary px-4 py-2 rounded shadow-lg"
+        >
+          Add Task
+        </Link>
       </div>
 
       {tasks.length < 1 ? (
@@ -75,8 +78,9 @@ function TaskList() {
               <div className="flex items-center">
                 <input
                   type="checkbox"
+                  id={`task-completed-${task.id}`}
                   checked={task.completed}
-                  onChange={() => handleComplete(task.id)}
+                  onChange={() => handleComplete(task)}
                   className="mr-4 cursor-pointer"
                 />
                 <span className={`text-lg ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>

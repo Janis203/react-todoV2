@@ -1,136 +1,151 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-
-type Comment = {
-  id: string;
-  text: string;
-  taskId: string;
-};
-
-type Task = {
-  id: string;
-  title: string;
-  content?: string;
-  completed: boolean;
-};
+import { useNavigate, useParams } from '@tanstack/react-router';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import { Task, Comment } from '../types';
+import { Spinner } from '../components/Spinner';
 
 function TaskDetail() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams({ from: '/posts/$id' });
+  const navigate = useNavigate();
   const [task, setTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState<string>("");
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null); 
-  const [editedText, setEditedText] = useState<string>(""); 
+  const [newComment, setNewComment] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      fetch(`http://localhost:3004/posts/${id}`)
-        .then(response => response.json())
-        .then(data => setTask(data));
+    const fetchTaskAndComments = async () => {
+      try {
+        console.log('Fetching task with ID:', id); 
+        const [taskResponse, commentsResponse] = await Promise.all([
+          axios.get(`http://localhost:3004/posts/${id}`),
+          axios.get(`http://localhost:3004/comments?taskId=${id}`)
+        ]);
+        setTask(taskResponse.data);
+        setComments(commentsResponse.data);
+        setLoading(false);
+      } catch (error: any) {
+        console.error('Error fetching task or comments:', error);
+        toast.error(`Failed to load task and comments: ${error.message}`);
+        setLoading(false);
+      }
+    };
 
-      fetch(`http://localhost:3004/comments?taskId=${id}`)
-        .then(response => response.json())
-        .then(data => setComments(data));
-    }
+    fetchTaskAndComments();
   }, [id]);
 
-  const handleAddComment = () => {
-    if (!id) return;
-    const comment: Comment = { id: (comments.length + 1).toString(), text: newComment, taskId: id };
-    fetch('http://localhost:3004/comments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(comment),
-    })
-      .then(() => setComments([...comments, comment]))
-      .catch(error => console.error('Error adding comment:', error));
-    setNewComment("");
-  };
-
-  const handleDeleteComment = (commentId: string) => {
-    fetch(`http://localhost:3004/comments/${commentId}`, { method: 'DELETE' })
-      .then(() => setComments(comments.filter(c => c.id !== commentId)))
-      .catch(error => console.error('Error deleting comment:', error));
-  };
-
-  const handleEditComment = (commentId: string) => {
-    const commentToEdit = comments.find(c => c.id === commentId);
-    if (commentToEdit) {
-      setEditingCommentId(commentId);
-      setEditedText(commentToEdit.text);
+  const handleAddComment = async () => {
+    if (newComment.trim()) {
+      try {
+        const response = await axios.post('http://localhost:3004/comments', {
+          text: newComment,
+          taskId: id,
+        });
+        setComments([...comments, response.data]);
+        setNewComment('');
+        toast.success('Comment added successfully!');
+      } catch (error) {
+        toast.error('Failed to add comment');
+      }
     }
   };
 
-  const handleSaveEditedComment = () => {
-    if (!id || !editingCommentId) return;
-    fetch(`http://localhost:3004/comments/${editingCommentId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editingCommentId, text: editedText, taskId: id }),
-    })
-      .then(() => {
-        setComments(comments.map(c => c.id === editingCommentId ? { ...c, text: editedText } : c));
-        setEditingCommentId(null);
-        setEditedText("");
-      })
-      .catch(error => console.error('Error updating comment:', error));
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await axios.delete(`http://localhost:3004/comments/${commentId}`);
+      setComments(comments.filter(comment => comment.id !== commentId));
+      toast.success('Comment deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete comment');
+    }
   };
 
-  if (!task) return <div className="text-center py-4">Loading...</div>;
+  const handleEditComment = async (commentId: string, updatedText: string) => {
+    try {
+      await axios.put(`http://localhost:3004/comments/${commentId}`, { text: updatedText });
+      setComments(comments.map(comment => (comment.id === commentId ? { ...comment, text: updatedText } : comment)));
+      toast.success('Comment updated successfully!');
+    } catch (error) {
+      toast.error('Failed to update comment');
+    }
+  };
+
+  if (loading) {
+    return <div className="p-2 text-2xl"><Spinner /></div>;
+  }
+
+  if (!task) {
+    return <div>Task not found</div>;
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-800">{task.title}</h1>
-      {task.content && <p className="mt-2 text-gray-700">{task.content}</p>}
+      <h2 className="text-2xl font-bold mb-4">Task Detail</h2>
 
-      <h2 className="text-xl font-semibold mt-6">Comments</h2>
-      <ul className="mt-4 space-y-4">
-        {comments.map(comment => (
-          <li key={comment.id} className="bg-white shadow-md rounded-lg p-4 flex justify-between items-center hover:bg-gray-50 transition">
-            <span>{comment.text}</span>
-            <div className="flex space-x-3">
-              <button onClick={() => handleEditComment(comment.id)} className="btn btn-warning px-3 py-1 rounded shadow">Edit</button>
-              <button onClick={() => handleDeleteComment(comment.id)} className="btn btn-danger px-3 py-1 rounded shadow">Delete</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div>
+        <h3 className="text-xl font-bold">Title: {task.title}</h3>
+        <p className="mt-2">Content: {task.content || 'No content provided'}</p>
+        <p className="mt-2">Status: {task.completed ? 'Completed' : 'Incomplete'}</p>
+      </div>
 
       <div className="mt-6">
-        <h2 className="text-xl font-semibold">Add Comment</h2>
-        <textarea
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          rows={4}
-          className="w-full mt-2 p-2 border rounded"
-        />
         <button
-          onClick={handleAddComment}
-          className="btn btn-primary mt-2 px-4 py-2 rounded shadow-lg"
+          onClick={() => navigate({ to: `/posts/${task.id}/edit` })}
+          className="bg-yellow-500 text-white px-4 py-2 rounded shadow"
         >
-          Add Comment
+          Edit Task
+        </button>
+        <button
+          onClick={() => navigate({ to: '/' })}
+          className="ml-4 bg-gray-500 text-white px-4 py-2 rounded shadow"
+        >
+          Back to List
         </button>
       </div>
 
-      {editingCommentId && (
+      <div className="mt-8">
+        <h3 className="text-xl font-bold mb-4">Comments</h3>
+
+        <ul className="space-y-4">
+          {comments.map((comment) => (
+            <li key={comment.id} className="bg-gray-100 p-4 rounded-lg shadow-md flex justify-between">
+              <span>{comment.text}</span>
+              <div>
+                <button
+                  onClick={() => handleEditComment(comment.id, prompt('Edit Comment:', comment.text) || comment.text)}
+                  className="text-blue-500 hover:underline mx-2"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDeleteComment(comment.id)}
+                  className="text-red-500 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+
         <div className="mt-6">
-          <h2 className="text-xl font-semibold">Edit Comment</h2>
-          <textarea
-            value={editedText}
-            onChange={(e) => setEditedText(e.target.value)}
-            rows={4}
-            className="w-full mt-2 p-2 border rounded"
+        <label htmlFor="new-comment" className="block text-sm font-medium">Add a comment</label>
+          <input
+            id="new-comment"
+            type="text"
+            placeholder="Add a comment"
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            className="border border-gray-300 rounded p-2 w-full"
           />
           <button
-            onClick={handleSaveEditedComment}
-            className="btn btn-primary mt-2 px-4 py-2 rounded shadow-lg"
+            onClick={handleAddComment}
+            className="bg-green-500 text-white px-4 py-2 mt-2 rounded shadow"
           >
-            Save
+            Add Comment
           </button>
         </div>
-      )}
-
-      <Link to="/" className="mt-4 inline-block text-blue-500">Back to Task List</Link>
+      </div>
     </div>
   );
 }

@@ -11,13 +11,12 @@
     "server": "json-server --watch db.json --port 3004"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.52.1",
-    "@tanstack/react-router": "^1.50.1",
-    "@tanstack/router": "^0.0.1-beta.53",
+    "@tanstack/react-query": "^5.52.2",
+    "@tanstack/react-router": "^1.51.2",
+    "axios": "^1.7.5",
     "json-server": "^1.0.0-beta.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.1",
     "react-toastify": "^10.0.5"
   },
   "devDependencies": {
