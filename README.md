@@ -14,7 +14,7 @@ A simple task management app built with React, Axios, and Tanstack Router. This 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/jancis/your-repo-name.git
+   git clone https://github.com/Janis203/react-todoV2
 2. Navigate to the project directory
 3. Install dependencies:
    ```sh
